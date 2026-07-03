@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LMS QA Pipeline — демо сверки РУ↔АЗ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #17181c;
+    --ink2: #40454f;
+    --muted: #727884;
+    --line: #e6e8ec;
+    --line2: #f0f2f4;
+    --paper: #f5f6f8;
+    --surface: #ffffff;
+    --accent: #0f7c72;
+    --accent-ink: #0b5b53;
+
+    --grid: #c3c8d0;
+    --grid2: #e3e7ec;
+    --sheet-head: #eef1f4;
+    --sheet-frozen: #f7f8fa;
+
+    --ok: #1a7f4b;   --ok-bg: #eef7f1;   --ok-line: #cfe8da;
+    --check: #b07216; --check-bg: #fbf4e6; --check-line: #efdfba;
+    --crit: #bf3632; --crit-bg: #fbedec; --crit-line: #f0cfcd;
+
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 48px) 96px; }
+
+  /* ── masthead ───────────────────────────────────────────── */
+  .masthead { margin-bottom: 34px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin: 0 0 12px;
+  }
+  .masthead h1 {
+    margin: 0;
+    font-size: clamp(24px, 4vw, 33px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  .masthead p {
+    margin: 12px 0 0;
+    font-size: 15px;
+    color: var(--ink2);
+    max-width: 62ch;
+  }
+
+  /* ── section scaffolding ────────────────────────────────── */
+  .step { margin-top: 40px; }
+  .step-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .step-num {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 2px 7px;
+    flex-shrink: 0;
+  }
+  .step-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .step-head .hint { color: var(--muted); font-size: 13.5px; font-weight: 400; }
+
+  /* ── browser frame + LMS mock ───────────────────────────── */
+  .browser {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(20,24,33,0.04), 0 12px 32px rgba(20,24,33,0.06);
+  }
+  .browser-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #eef0f3;
+    border-bottom: 1px solid var(--line);
+  }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; background: #cfd3da; display: block; }
+  .addr {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── the real Tampermonkey toolbar (authentic colors) ───── */
+  .tm-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(33,33,33,0.97);
+  }
+  .tm-btn {
+    font: inherit;
+    font-size: 13px;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tm-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .tm-drop { position: relative; margin-right: auto; }
+  .tm-menu {
+    position: absolute; top: calc(100% + 6px); left: 0;
+    width: 320px; max-width: 82vw; background: #1e1e1e; border: 1px solid #333;
+    border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    padding: 6px; display: none; flex-direction: column; gap: 2px; z-index: 30;
+  }
+  .tm-menu.open { display: flex; }
+  .tm-menu button {
+    font: inherit; text-align: left; color: #e8e8e8;
+    background: transparent; border: none; border-radius: 6px;
+    padding: 9px 11px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .tm-menu button:hover { background: #333; }
+  .tm-menu .mi-t { font-size: 13px; font-weight: 500; }
+  .tm-menu .mi-d { font-size: 11px; line-height: 1.35; color: #9a9ea6; white-space: normal; }
+  .tm-badge {
+    font-size: 12px; color: #fff; background: #424242;
+    border-radius: 6px; padding: 6px 10px; white-space: nowrap; cursor: pointer;
+    max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ── faded LMS lesson body behind the toolbar ───────────── */
+  .lms-body { padding: 22px clamp(16px, 3vw, 30px); opacity: 0.62; pointer-events: none; user-select: none; }
+  .lms-body h3 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+  .lms-body .sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  .lms-body .lbl {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted); margin: 16px 0 7px;
+  }
+  .lms-body .mat, .lms-body .lvl {
+    font-size: 13.5px; color: var(--ink2); padding: 5px 0;
+    border-bottom: 1px solid var(--line2); display: flex; gap: 8px;
+  }
+  .lms-body .mat a { color: #1155cc; text-decoration: none; }
+  .lms-body .lvl .n {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    background: var(--paper); border-radius: 4px; padding: 1px 6px; flex-shrink: 0;
+  }
+
+  .caption { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .caption b { color: var(--ink2); font-weight: 500; }
+
+  /* ── dataset toggle ─────────────────────────────────────── */
+  .seg {
+    display: inline-flex; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; padding: 3px;
+  }
+  .seg button {
+    font: inherit; font-size: 13px; color: var(--ink2); background: transparent;
+    border: none; border-radius: 6px; padding: 6px 13px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 500; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ── pipeline flow (arrows) ─────────────────────────────── */
+  .pipe {
+    display: flex; align-items: stretch; gap: 6px;
+    overflow-x: auto; padding-bottom: 8px;
+  }
+  .stage {
+    flex: 0 0 168px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 11px 12px; opacity: 0.4;
+    transition: opacity 0.3s ease, border-color 0.3s ease;
+    display: flex; flex-direction: column;
+  }
+  .stage.lit { opacity: 1; border-color: var(--accent); }
+  .stage.report-node.lit { border-color: var(--accent-ink); background: #f1f8f6; }
+  .stage .k {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.03em;
+    text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .stage .k .n {
+    color: #fff; background: var(--accent); border-radius: 4px;
+    padding: 0 5px; font-size: 10px; line-height: 15px;
+  }
+  .stage.report-node .k .n { background: var(--accent-ink); }
+  .stage .v { font-size: 19px; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .stage .v small { font-size: 11px; font-weight: 400; color: var(--muted); }
+  .stage .d { font-size: 11.5px; line-height: 1.4; color: var(--ink2); margin-top: 6px; }
+  .arrow {
+    flex: 0 0 auto; align-self: center; color: var(--muted);
+    font-size: 18px; padding: 0 1px;
+  }
+
+  /* ── summary chips ──────────────────────────────────────── */
+  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 4px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 500; padding: 6px 13px;
+    border-radius: 999px; border: 1px solid var(--line); background: var(--surface);
+  }
+  .chip .num { font-variant-numeric: tabular-nums; color: var(--muted); }
+
+  /* ── status dots ────────────────────────────────────────── */
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+  .dot.ok { background: var(--ok); }
+  .dot.check { background: var(--check); }
+  .dot.crit { background: var(--crit); }
+
+  /* ── report — плоская таблица «как в гугл-таблице» ──────── */
+  .report { border: 1px solid var(--grid); border-radius: 2px; overflow: hidden; margin-top: 6px; background: var(--surface); }
+
+  .report-colhead,
+  .field {
+    display: grid;
+    grid-template-columns: 168px 26px 1fr 1fr;
+  }
+
+  .report-colhead > div,
+  .field > div { padding: 7px 12px; min-width: 0; border-right: 1px solid var(--grid2); }
+  .report-colhead > div:last-child,
+  .field > div:last-child { border-right: none; }
+
+  .report-colhead {
+    background: var(--sheet-head);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+    border-bottom: 1px solid var(--grid);
+    position: sticky; top: 0; z-index: 2;
+  }
+
+  .lesson-head .lh-top {
+    padding: 9px 12px;
+    background: var(--sheet-frozen);
+    border-bottom: 1px solid var(--grid2);
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.03em;
+    text-transform: uppercase; color: var(--ink2); font-weight: 600;
+  }
+
+  .level { border-top: 1px solid var(--grid); }
+
+  .lv-head {
+    width: 100%; text-align: left; font: inherit; background: var(--sheet-head);
+    border: none; cursor: pointer; padding: 9px 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .lv-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .lv-head .idx {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    background: #fff; border: 1px solid var(--grid2); border-radius: 3px; padding: 1px 7px; flex-shrink: 0;
+  }
+  .lv-head .ttl { font-weight: 600; flex: 1; min-width: 0; }
+  .lv-head .ttl .az { color: var(--muted); font-weight: 400; }
+  .lv-head .verdict { font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 7px; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.check { color: var(--check); }
+  .verdict.crit { color: var(--crit); }
+  .lv-head .caret { color: var(--muted); font-size: 11px; transition: transform 0.2s ease; }
+  .level.open .lv-head .caret { transform: rotate(90deg); }
+
+  .lv-body { display: none; }
+  .level.open .lv-body { display: block; }
+
+  .field { border-top: 1px solid var(--grid2); align-items: stretch; }
+  .field.crit { background: var(--crit-bg); }
+  .field.check { background: var(--check-bg); }
+  .field .fname {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.02em;
+    color: var(--muted); text-transform: uppercase;
+    display: flex; align-items: center; background: var(--sheet-frozen);
+  }
+  .field.crit .fname, .field.check .fname { background: transparent; }
+  .field .fstat { display: flex; align-items: center; justify-content: center; }
+  .field .val { overflow-wrap: anywhere; }
+  .field .val.ru::before, .field .val.az::before {
+    content: attr(data-lang); display: block;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
+    color: var(--muted); margin-bottom: 2px;
+  }
+  .field .val .missing { color: var(--crit); font-style: italic; }
+  .field .note {
+    grid-column: 1 / -1; padding: 0 12px 9px 180px;
+    font-size: 12.5px; color: var(--ink2); border-right: none;
+  }
+
+  /* ── image thumbnails in report ─────────────────────────── */
+  .thumbs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .thumbs img {
+    width: 68px; height: 48px; object-fit: cover;
+    border: 1px solid var(--grid2); border-radius: 2px; background: #fff; display: block;
+  }
+  .thumbs .none { color: var(--crit); font-style: italic; font-size: 12.5px; }
+
+  .empty {
+    text-align: center; color: var(--muted); padding: 52px 20px;
+    background: var(--surface); border: 1px dashed var(--line); border-radius: 4px;
+  }
+  .empty h3 { font-size: 15px; color: var(--ink2); margin: 0 0 5px; font-weight: 600; }
+  .empty p { margin: 0; font-size: 14px; }
+
+  /* ── webhook modal ──────────────────────────────────────── */
+  .overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(3px);
+    display: none; align-items: center; justify-content: center;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: #1e1e1e; border: 1px solid #333; border-radius: 12px;
+    padding: 20px; width: 360px; max-width: calc(100vw - 32px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    font-family: var(--sans); color: #f0f0f0;
+  }
+  .modal h2 { margin: 0 0 3px; font-size: 15px; font-weight: 600; }
+  .modal .msub { font-size: 12px; color: #888; margin: 0 0 14px; }
+  .modal .glabel {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #666; margin: 12px 0 6px;
+  }
+  .modal .glabel:first-of-type { margin-top: 0; }
+  .modal .members { display: flex; flex-wrap: wrap; gap: 6px; }
+  .modal .mbtn {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 20px;
+    border: 1.5px solid #3a3a3a; background: #2a2a2a; color: #d0d0d0; cursor: pointer;
+  }
+  .modal .mbtn:hover { border-color: #555; background: #333; color: #fff; }
+  .modal .mbtn.active { border-color: #4a9eff; background: #1a3a5c; color: #7ec8ff; }
+  .modal .mdivider { height: 1px; background: #2a2a2a; margin: 14px 0; }
+
+  /* ── toast ──────────────────────────────────────────────── */
+  #toasts {
+    position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+    z-index: 200; display: flex; flex-direction: column; gap: 8px;
+    align-items: center; pointer-events: none; max-width: min(400px, calc(100vw - 32px));
+  }
+  .toast {
+    background: #1e1e1e; color: #f0f0f0; border-left: 3px solid #2e7d32;
+    border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+    font-size: 13px; line-height: 1.4; display: flex; gap: 9px;
+    opacity: 0; transform: translateY(-8px); transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.err { border-left-color: #c62828; }
+  .toast .ic { font-weight: 700; flex: 0 0 auto; }
+  .toast .tt { font-weight: 600; }
+  .toast .td { font-size: 12px; color: #b6bac1; margin-top: 3px; }
+
+  .foot {
+    max-width: 1060px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 48px) 48px;
+    color: var(--muted); font-size: 12.5px;
+  }
+  .foot code { font-family: var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+
+  @media (max-width: 760px) {
+    .pipe { flex-direction: column; align-items: stretch; overflow-x: visible; }
+    .stage { flex: 1 1 auto; }
+    .arrow { transform: rotate(90deg); align-self: center; }
+    .report-colhead { display: none; }
+    .field { grid-template-columns: 1fr 1fr; grid-template-areas: "name name" "stat stat" "ru az"; }
+    .field .fname { grid-area: name; padding-bottom: 2px; }
+    .field .fstat { grid-area: stat; justify-content: flex-start; padding-top: 0; padding-bottom: 4px; border-right: none; }
+    .field .val { border-right: none; }
+    .field .val.az { border-left: 1px solid var(--grid2); }
+    .field .note { padding-left: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage, .caret, .toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toasts" aria-live="polite"></div>
+
+<main class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">QA-инструмент локализации · демо на синтетике</p>
+    <h1>Сверка русской и азербайджанской версий урока</h1>
+    <p>Тулбар Tampermonkey выгружает уровни со страницы LMS, пайплайн сопоставляет пары РУ↔АЗ, сравнивает конфиги и переводы и собирает отчёт. Ниже — тот же путь, вживую и без доступов к Google.</p>
+  </header>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="step-num">01</span>
+      <h2>Тулбар на странице урока</h2>
+      <span class="hint">— то, что видит тестировщик в LMS</span>
+    </div>
+
+    <div class="browser">
+      <div class="browser-bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="addr">lms.alg.academy/lesson/view/6c43a088-8eaa-4317-8223-3d1a095fb4c9</span>
+      </div>
+
+      <div class="tm-toolbar" id="toolbar">
+        <div class="tm-drop">
+          <button class="tm-btn" style="background:#00897b" id="tm-project" aria-haspopup="true" aria-expanded="false">🧮 Математика АЗ ▾</button>
+          <div class="tm-menu" id="tm-menu" role="menu">
+            <button role="menuitem" data-title="Перелинковка"
+              data-desc="В проде: проверяет целостность материалов урока — что презентация и разбор лежат в нужных папках Диска по классу/году и корректно перелинкованы. Результат — прямо в браузере.">
+              <span class="mi-t">🔗 Перелинковка</span>
+              <span class="mi-d">Проверяет, что материалы лежат в нужных папках Диска и перелинкованы</span>
+            </button>
+            <button role="menuitem" data-title="Ссылки на материалы"
+              data-desc="В проде: копирует ссылки на материалы урока в буфер обмена — сразу в двух форматах, HTML и простой текст, чтобы вставить в таблицу или чат.">
+              <span class="mi-t">📋 Ссылки на материалы</span>
+              <span class="mi-d">Копирует ссылки на материалы в буфер (HTML + простой текст)</span>
+            </button>
+            <button role="menuitem" data-title="Скачать материалы"
+              data-desc="В проде: открывает выбор формата (Office или PDF) и скачивает презентацию/методичку из Google Drive через скрытые iframe'ы.">
+              <span class="mi-t">⬇️ Скачать материалы</span>
+              <span class="mi-d">Скачивает презентацию/методичку из Drive в выбранном формате</span>
+            </button>
+          </div>
+        </div>
+        <button class="tm-btn" style="background:#2e7d32" id="tm-export">Выгрузить уровни</button>
+        <button class="tm-btn" style="background:#c62828" id="tm-clear">Очистить LMS_LEVELS</button>
+        <button class="tm-btn" style="background:#1565c0" id="tm-pick">Выбрать webhook</button>
+        <button class="tm-btn" style="background:#6a1e8a; display:none" id="tm-sheet">📊 Моя таблица</button>
+        <span class="tm-badge" id="tm-badge" title="Сменить webhook">Webhook: не выбран</span>
+      </div>
+
+      <div class="lms-body">
+        <h3>Счёт до 10 / 10-a qədər sayma</h3>
+        <p class="sub">Математика · 1 класс · черновик</p>
+        <div class="lbl">Материалы урока</div>
+        <div class="mat">Презентация&nbsp;·&nbsp;<a>docs.google.com/presentation/…</a></div>
+        <div class="mat">Методичка&nbsp;·&nbsp;<a>docs.google.com/document/…</a></div>
+        <div class="lbl">Уровни</div>
+        <div class="lvl"><span class="n">1</span> Знакомство</div>
+        <div class="lvl"><span class="n">2</span> Посчитай яблоки</div>
+        <div class="lvl"><span class="n">3</span> Верно или нет</div>
+        <div class="lvl"><span class="n">4</span> Распредели фигуры</div>
+      </div>
+    </div>
+
+    <p class="caption">Наводи и жми кнопки тулбара — под каждым действием всплывёт, что оно делает в боевом проекте. Чтобы построить отчёт, нажми <b>Выгрузить уровни</b>. Набор данных:
+      <span class="seg" role="group" aria-label="Набор данных" style="margin-left:6px; vertical-align:middle">
+        <button id="ds-broken" aria-pressed="true">Урок с ошибками</button>
+        <button id="ds-clean" aria-pressed="false">Здоровый урок</button>
+      </span>
+    </p>
+  </section>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="step-num">02</span>
+      <h2>Пайплайн</h2>
+      <span class="hint">— пять стадий от выгрузки до готового отчёта</span>
+    </div>
+    <div class="pipe" id="pipe"></div>
+  </section>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="step-num">03</span>
+      <h2>QA-отчёт</h2>
+      <span class="hint">— side-by-side РУ↔АЗ, статус слева</span>
+    </div>
+    <div class="summary" id="summary" hidden></div>
+    <div class="report" id="report">
+      <div class="empty">
+        <h3>Отчёт ещё не построен</h3>
+        <p>Выгрузи уровни через тулбар выше — данные пройдут пайплайн и превратятся в сверку.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  Данные синтетические и обезличенные. В проде та же логика (<code>detectLang</code>, <code>buildPairs</code>,
+  <code>checkTranslation</code>, <code>diffLevel</code>) работает на Google Apps Script и пишет отчёт в Google Sheets;
+  здесь вынесена в чистый JS. Тулбар воспроизведён как в userscript'е.
+</footer>
+
+<div class="overlay" id="wh-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wh-title">
+    <h2 id="wh-title">Выбери webhook</h2>
+    <div class="msub" id="wh-sub">Webhook ещё не выбран</div>
+    <div id="wh-groups"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ─────────────────────────────────────────────────────────────
+// SAMPLE IMAGES · self-contained SVG data-URI (для визуальной проверки)
+// ─────────────────────────────────────────────────────────────
+function svgThumb(inner) {
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='84' viewBox='0 0 120 84'>" +
+    "<rect width='120' height='84' fill='#fbfcfd'/>" + inner + "</svg>";
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+const T = {
+  scene:   svgThumb("<circle cx='95' cy='22' r='13' fill='#e6b84c'/><rect x='0' y='60' width='120' height='24' fill='#5aa76a'/><rect x='22' y='38' width='14' height='22' fill='#8a6240'/><circle cx='29' cy='34' r='13' fill='#5aa76a'/>"),
+  apples:  svgThumb("<g fill='#e2574c'><circle cx='26' cy='30' r='11'/><circle cx='52' cy='30' r='11'/><circle cx='78' cy='30' r='11'/><circle cx='39' cy='56' r='11'/><circle cx='65' cy='56' r='11'/></g>"),
+  circles: svgThumb("<g fill='#3b82c4'><circle cx='34' cy='42' r='14'/><circle cx='60' cy='42' r='14'/><circle cx='86' cy='42' r='14'/></g>"),
+  redFig:  svgThumb("<polygon points='34,20 52,58 16,58' fill='#e2574c'/><rect x='64' y='28' width='36' height='36' fill='#e2574c'/>"),
+  blueFig: svgThumb("<rect x='18' y='26' width='34' height='34' fill='#3b82c4'/><circle cx='84' cy='43' r='18' fill='#3b82c4'/>"),
+  num5:    svgThumb("<text x='60' y='60' font-family='monospace' font-size='54' font-weight='700' fill='#33373d' text-anchor='middle'>5</text>")
+};
+
+// ─────────────────────────────────────────────────────────────
+// FIXTURES · синтетические выгрузки двух версий урока
+// ─────────────────────────────────────────────────────────────
+const LESSON_META = {
+  title_ru: "Счёт до 10", title_az: "10-a qədər sayma",
+  course_ru: "Математика · 1 класс", course_az: "Riyaziyyat · 1-ci sinif",
+  materials: 2
+};
+
+const DATASETS = {
+  broken: {
+    ru: [
+      { taskSeq:1, order:1, type:"message",        score:0,  autocheck:false, answers:0, imgs:[T.scene],                 title:"Знакомство",        desc:"Посмотри, как считать яблоки в корзине." },
+      { taskSeq:2, order:1, type:"input",          score:30, autocheck:true,  answers:1, imgs:[T.apples],                title:"Посчитай яблоки",   desc:"В корзине 5 яблок. Сколько всего?" },
+      { taskSeq:3, order:1, type:"bool",           score:30, autocheck:true,  answers:2, imgs:[],                        title:"Верно или нет",     desc:"2 + 3 = 5. Это верно?" },
+      { taskSeq:4, order:1, type:"categorization", score:40, autocheck:true,  answers:4, imgs:[T.redFig, T.blueFig],     title:"Распредели фигуры", desc:"Разложи фигуры по цвету." },
+      { taskSeq:5, order:1, type:"input",          score:30, autocheck:true,  answers:1, imgs:[T.circles],               title:"Сколько кругов",    desc:"Посчитай круги на картинке." },
+      { taskSeq:6, order:1, type:"matching",       score:30, autocheck:true,  answers:3, imgs:[T.num5, T.apples, T.circles], title:"Найди пару",     desc:"Соедини число и картинку." },
+      { taskSeq:7, order:1, type:"input",          score:30, autocheck:true,  answers:1, imgs:[],                        title:"Впиши ответ",       desc:"Ответ: {{n}}" },
+      { taskSeq:8, order:1, type:"input",          score:20, autocheck:true,  answers:1, imgs:[],                        title:"Бонус: реши пример",desc:"Реши: 7 + 2 = ?" }
+    ],
+    az: [
+      { taskSeq:1, order:1, type:"message",        score:0,  autocheck:false, answers:0, imgs:[T.scene],             title:"Tanışlıq",         desc:"Səbətdəki almaları necə saymağı gör." },
+      { taskSeq:2, order:1, type:"input",          score:30, autocheck:true,  answers:1, imgs:[T.apples],            title:"Almaları say",     desc:"Səbətdə 5 alma var. Cəmi neçədir?" },
+      { taskSeq:3, order:1, type:"bool",           score:30, autocheck:true,  answers:2, imgs:[],                    title:"Doğru ya yanlış",  desc:"2 + 3 = 6. Bu doğrudur?" },
+      { taskSeq:4, order:1, type:"categorization", score:40, autocheck:true,  answers:3, imgs:[T.redFig, T.blueFig], title:"Fiqurları ayır",   desc:"Fiqurları rənginə görə ayır." },
+      { taskSeq:5, order:1, type:"input",          score:20, autocheck:true,  answers:1, imgs:[T.circles],           title:"Neçə dairə",       desc:"Şəkildəki dairələri say." },
+      { taskSeq:6, order:1, type:"matching",       score:30, autocheck:true,  answers:3, imgs:[T.num5, T.apples],    title:"Cütü tap",         desc:"Rəqəmi və şəkli birləşdir." },
+      { taskSeq:7, order:1, type:"input",          score:30, autocheck:true,  answers:1, imgs:[],                    title:"Cavabı yaz",       desc:"Cavab: {{n}}" }
+    ]
+  }
+};
+
+DATASETS.clean = {
+  ru: DATASETS.broken.ru.map(cloneLevel),
+  az: DATASETS.broken.ru.map(function (lv, i) {
+    const az = DATASETS.broken.az[i] ? cloneLevel(DATASETS.broken.az[i]) : cloneLevel(lv);
+    az.taskSeq = lv.taskSeq; az.order = lv.order;
+    az.type = lv.type; az.score = lv.score; az.autocheck = lv.autocheck;
+    az.answers = lv.answers; az.imgs = lv.imgs.slice();
+    return az;
+  })
+};
+DATASETS.clean.az[2].desc = "2 + 3 = 5. Bu doğrudur?";
+DATASETS.clean.az[7].title = "Bonus: nümunəni həll et";
+DATASETS.clean.az[7].desc  = "Həll et: 7 + 2 = ?";
+
+function cloneLevel(l) {
+  const c = { imgs: (l.imgs || []).slice() };
+  Object.keys(l).forEach(function (k) { if (k !== "imgs") c[k] = l[k]; });
+  return c;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CORE · определение языка
+// ─────────────────────────────────────────────────────────────
+const AZ_MARKERS = /[əğıöşüçĞİÖŞÜÇƏ]/;
+const CYRILLIC   = /[а-яА-ЯёЁ]/;
+
+function detectLang(text) {
+  if (!text) return "UNKNOWN";
+  if (AZ_MARKERS.test(text)) return "AZ";
+  if (CYRILLIC.test(text))   return "RU";
+  return "UNKNOWN";
+}
+
+// ─────────────────────────────────────────────────────────────
+// CORE · спаривание по pairKey = taskSeq||order
+// ─────────────────────────────────────────────────────────────
+function pairKey(lv) { return lv.taskSeq + "||" + lv.order; }
+
+function buildPairs(ruLevels, azLevels) {
+  const azByKey = {};
+  azLevels.forEach(function (lv) { azByKey[pairKey(lv)] = lv; });
+
+  const pairs = ruLevels.map(function (ru) {
+    const az = azByKey[pairKey(ru)] || null;
+    if (az) delete azByKey[pairKey(ru)];
+    return { key: pairKey(ru), ru: ru, az: az, status: az ? "PAIRED" : "MISSING_AZ" };
+  });
+
+  Object.keys(azByKey).forEach(function (k) {
+    pairs.push({ key: k, ru: null, az: azByKey[k], status: "MISSING_RU" });
+  });
+
+  pairs.sort(function (a, b) { return a.key.localeCompare(b.key, "en", { numeric: true }); });
+  return pairs;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CORE · проверка перевода
+// ─────────────────────────────────────────────────────────────
+function extractNumbers(s)      { return (String(s).match(/\d+/g) || []).sort(); }
+function extractPlaceholders(s) { return (String(s).match(/\{\{[^}]+\}\}/g) || []).sort(); }
+function extractOperators(s)    { return (String(s).match(/[+\-×÷*/=<>]/g) || []).sort(); }
+function sameSet(a, b) { return a.length === b.length && a.every(function (x, i) { return x === b[i]; }); }
+
+function checkTranslation(ru, az) {
+  if (!sameSet(extractNumbers(ru), extractNumbers(az)))
+    return { level: "crit", reason: "числа в РУ и АЗ не совпадают" };
+  if (!sameSet(extractPlaceholders(ru), extractPlaceholders(az)))
+    return { level: "crit", reason: "разный набор плейсхолдеров {{…}}" };
+  if (!sameSet(extractOperators(ru), extractOperators(az)))
+    return { level: "crit", reason: "разный набор операторов" };
+
+  const ratio = az.length / Math.max(ru.length, 1);
+  if (ratio < 0.5 || ratio > 2)
+    return { level: "check", reason: "сильно разная длина строк — проверить вручную" };
+
+  return { level: "ok", reason: ru === az ? "" : "текст переведён" };
+}
+
+// ─────────────────────────────────────────────────────────────
+// CORE · дифф одного уровня
+// ─────────────────────────────────────────────────────────────
+const STRUCT_FIELDS = [
+  { key: "type",      name: "тип",          text: "тип механики" },
+  { key: "score",     name: "баллы",        text: "количество баллов" },
+  { key: "autocheck", name: "автопроверка", text: "флаг автопроверки" },
+  { key: "answers",   name: "ответы",       text: "число вариантов ответа" }
+];
+
+function worst(a, b) {
+  const rank = { ok: 0, check: 1, crit: 2 };
+  return rank[a] >= rank[b] ? a : b;
+}
+
+function diffLevel(pair) {
+  if (pair.status === "MISSING_AZ")
+    return { status: "crit", verdict: "нет АЗ-версии", fields: [], note: "Уровень есть в РУ, но отсутствует в АЗ." };
+  if (pair.status === "MISSING_RU")
+    return { status: "crit", verdict: "нет РУ-версии", fields: [], note: "Уровень есть в АЗ, но отсутствует в РУ." };
+
+  const ru = pair.ru, az = pair.az;
+  const fields = [];
+  let status = "ok";
+
+  STRUCT_FIELDS.forEach(function (f) {
+    const same = ru[f.key] === az[f.key];
+    const st = same ? "ok" : "crit";
+    status = worst(status, st);
+    fields.push({
+      name: f.name, status: st,
+      ru: String(ru[f.key]), az: String(az[f.key]),
+      note: same ? "" : "структурное расхождение: " + f.text
+    });
+  });
+
+  const tTitle = checkTranslation(ru.title, az.title);
+  status = worst(status, tTitle.level);
+  fields.push({ name: "название", status: tTitle.level, ru: ru.title, az: az.title, note: tTitle.reason });
+
+  const tDesc = checkTranslation(ru.desc, az.desc);
+  status = worst(status, tDesc.level);
+  fields.push({ name: "описание", status: tDesc.level, ru: ru.desc, az: az.desc, note: tDesc.reason });
+
+  const ruImgs = ru.imgs || [], azImgs = az.imgs || [];
+  if (ruImgs.length || azImgs.length) {
+    const imgStatus = ruImgs.length === azImgs.length ? "ok" : "crit";
+    status = worst(status, imgStatus);
+    fields.push({
+      name: "изображения", status: imgStatus, kind: "image",
+      ruImgs: ruImgs, azImgs: azImgs,
+      note: imgStatus === "ok"
+        ? "картинки всегда сверяются визуально"
+        : "разное число изображений (" + ruImgs.length + " ↔ " + azImgs.length + ") — сверить визуально"
+    });
+  }
+
+  const verdict = status === "crit" ? "требует правки" : status === "check" ? "проверить" : "совпадает";
+  return { status: status, verdict: verdict, fields: fields, note: "" };
+}
+
+// ─────────────────────────────────────────────────────────────
+// CORE · сборка отчёта
+// ─────────────────────────────────────────────────────────────
+function runPipeline(ds) {
+  const pairs = buildPairs(ds.ru, ds.az);
+  const levels = pairs.map(function (p) { return { pair: p, diff: diffLevel(p) }; });
+
+  const diffCount = levels.reduce(function (acc, l) {
+    return acc + l.diff.fields.filter(function (f) { return f.status !== "ok"; }).length + (l.diff.fields.length ? 0 : 1);
+  }, 0);
+
+  const counts = { ok: 0, check: 0, crit: 0 };
+  levels.forEach(function (l) { counts[l.diff.status]++; });
+
+  return {
+    levels: levels,
+    counts: counts,
+    stages: [
+      { key: "LMS_LEVELS",       val: ds.ru.length + ds.az.length,       unit: "строк",        desc: "Плашка выгрузила уровни обеих версий в таблицу" },
+      { key: "LMS_PAIRS",        val: pairs.length,                      unit: "пар",          desc: "Уровни РУ и АЗ спарены по позиции (taskSeq‖order)" },
+      { key: "CONFIG_DIFFS",     val: diffCount,                         unit: "расхождений",  desc: "Сравнили конфиги пар: тип, баллы, ответы, тексты, картинки" },
+      { key: "RAW_PARSED_NODES", val: (ds.ru.length + ds.az.length) * 2, unit: "нод",          desc: "Дерево каждого уровня разобрано на ноды и поля" },
+      { key: "LEVEL_QA",         val: levels.length,                     unit: "уровней",      desc: "Собран итоговый отчёт со статусами" }
+    ]
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// STATE + refs
+// ─────────────────────────────────────────────────────────────
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let current = "broken";
+let webhookName = "";
+
+const WEBHOOK_GROUPS = [
+  { label: "Тестеры",      members: ["Тестер 1", "Тестер 2"] },
+  { label: "Локализаторы", members: ["Локализатор 1", "Локализатор 2"] }
+];
+
+const el = {
+  pipe: document.getElementById("pipe"),
+  summary: document.getElementById("summary"),
+  report: document.getElementById("report"),
+  toasts: document.getElementById("toasts"),
+  badge: document.getElementById("tm-badge"),
+  pick: document.getElementById("tm-pick"),
+  sheet: document.getElementById("tm-sheet"),
+  export: document.getElementById("tm-export"),
+  clear: document.getElementById("tm-clear"),
+  project: document.getElementById("tm-project"),
+  menu: document.getElementById("tm-menu"),
+  broken: document.getElementById("ds-broken"),
+  clean: document.getElementById("ds-clean"),
+  whOverlay: document.getElementById("wh-overlay"),
+  whSub: document.getElementById("wh-sub"),
+  whGroups: document.getElementById("wh-groups")
+};
+
+// ─────────────────────────────────────────────────────────────
+// TOAST (как в userscript) — с пояснением, что было бы в проде
+// ─────────────────────────────────────────────────────────────
+function toast(title, desc, kind) {
+  const t = document.createElement("div");
+  t.className = "toast" + (kind === "err" ? " err" : "");
+  const ic = document.createElement("span");
+  ic.className = "ic";
+  ic.textContent = kind === "err" ? "✕" : "✓";
+  const tx = document.createElement("span");
+  const tt = document.createElement("div");
+  tt.className = "tt";
+  tt.textContent = title;
+  tx.appendChild(tt);
+  if (desc) {
+    const td = document.createElement("div");
+    td.className = "td";
+    td.textContent = desc;
+    tx.appendChild(td);
+  }
+  t.appendChild(ic);
+  t.appendChild(tx);
+  el.toasts.appendChild(t);
+  requestAnimationFrame(function () { t.classList.add("show"); });
+  setTimeout(function () {
+    t.classList.remove("show");
+    setTimeout(function () { try { t.remove(); } catch (e) {} }, 220);
+  }, 4200);
+}
+
+// ─────────────────────────────────────────────────────────────
+// WEBHOOK MODAL
+// ─────────────────────────────────────────────────────────────
+function openWebhookModal() {
+  el.whSub.textContent = webhookName ? ("Сейчас выбран: " + webhookName) : "Webhook ещё не выбран";
+  el.whGroups.innerHTML = WEBHOOK_GROUPS.map(function (g, gi) {
+    const divider = gi > 0 ? '<div class="mdivider"></div>' : "";
+    const members = g.members.map(function (name) {
+      const active = name === webhookName ? " active" : "";
+      return '<button class="mbtn' + active + '" data-name="' + name + '">' + name + '</button>';
+    }).join("");
+    return divider + '<div class="glabel">' + g.label + '</div><div class="members">' + members + '</div>';
+  }).join("");
+  el.whOverlay.classList.add("open");
+}
+function closeWebhookModal() { el.whOverlay.classList.remove("open"); }
+
+function selectWebhook(name) {
+  webhookName = name;
+  el.badge.textContent = "Webhook: " + name;
+  el.pick.style.display = "none";
+  el.sheet.style.display = "";
+  closeWebhookModal();
+  toast("Webhook: " + name, "В проде: выгрузка пойдёт именно в личную Google-таблицу «" + name + "»");
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER · пайплайн стрелочками
+// ─────────────────────────────────────────────────────────────
+function renderStages(stages, litTo) {
+  const arrow = '<div class="arrow" aria-hidden="true">→</div>';
+
+  const stageHtml = stages.map(function (s, i) {
+    const lit = i < litTo ? " lit" : "";
+    const val = i < litTo ? s.val : "·";
+    return '<div class="stage' + lit + '">' +
+             '<div class="k"><span class="n">' + (i + 1) + '</span><span>' + s.key + '</span></div>' +
+             '<div class="v">' + val + ' <small>' + s.unit + '</small></div>' +
+             '<div class="d">' + s.desc + '</div>' +
+           '</div>';
+  }).join(arrow);
+
+  const reportLit = litTo > stages.length - 1 ? " lit" : "";
+  const reportNode =
+    '<div class="stage report-node' + reportLit + '">' +
+      '<div class="k"><span class="n">✓</span><span>ОТЧЁТ</span></div>' +
+      '<div class="v">LEVEL_QA</div>' +
+      '<div class="d">Готовая сверка — в блоке 03 ниже</div>' +
+    '</div>';
+
+  el.pipe.innerHTML = stageHtml + arrow + reportNode;
+}
+
+function renderSummary(counts) {
+  el.summary.hidden = false;
+  el.summary.innerHTML =
+    chip("crit", "критично", counts.crit) +
+    chip("check", "проверить", counts.check) +
+    chip("ok", "совпадает", counts.ok);
+}
+function chip(cls, label, n) {
+  return '<span class="chip"><span class="dot ' + cls + '"></span>' + label + ' <span class="num">' + n + '</span></span>';
+}
+
+function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" })[c]; }); }
+
+function renderThumbs(imgs) {
+  if (!imgs || !imgs.length) return '<span class="none">нет изображений</span>';
+  return '<div class="thumbs">' + imgs.map(function (u, i) {
+    return '<img src="' + u + '" alt="изображение ' + (i + 1) + '">';
+  }).join("") + '</div>';
+}
+
+function renderReport(result) {
+  const colhead =
+    '<div class="report-colhead"><div>Поле</div><div></div><div>РУ</div><div>АЗ</div></div>';
+
+  const head =
+    '<div class="lesson-head">' +
+      '<div class="lh-top">Урок · ' + esc(LESSON_META.title_ru) + ' → ' + esc(LESSON_META.title_az) + '</div>' +
+      fieldRow({ name:"курс", status:"ok", ru:LESSON_META.course_ru, az:LESSON_META.course_az, note:"" }) +
+      fieldRow({ name:"материалы", status:"check", ru:LESSON_META.materials + " ссылки", az:LESSON_META.materials + " ссылки", note:"ссылки автоматически не проверяются — открыть и сверить вручную" }) +
+    '</div>';
+
+  const levels = result.levels.map(function (l, i) { return renderLevel(l, i + 1); }).join("");
+  el.report.innerHTML = colhead + head + levels;
+
+  el.report.querySelectorAll(".lv-head").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const lv = btn.closest(".level");
+      const open = lv.classList.toggle("open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+}
+
+function renderLevel(l, idx) {
+  const st = l.diff.status;
+  const openByDefault = st !== "ok";
+  const rows = l.diff.fields.length
+    ? l.diff.fields.map(fieldRow).join("")
+    : '<div class="field ' + st + '"><div class="note" style="padding-left:12px">' + esc(l.diff.note) + '</div></div>';
+
+  const az = l.pair.az ? l.pair.az.title : "—";
+  return '<article class="level ' + st + (openByDefault ? " open" : "") + '">' +
+      '<button class="lv-head" aria-expanded="' + openByDefault + '">' +
+        '<span class="idx">' + idx + '</span>' +
+        '<span class="ttl">' + esc(l.pair.ru ? l.pair.ru.title : az) +
+          ' <span class="az">/ ' + esc(az) + '</span></span>' +
+        '<span class="verdict ' + st + '"><span class="dot ' + st + '"></span>' + esc(l.diff.verdict) + '</span>' +
+        '<span class="caret">▶</span>' +
+      '</button>' +
+      '<div class="lv-body">' + rows + '</div>' +
+    '</article>';
+}
+
+function fieldRow(f) {
+  const cls = f.status !== "ok" ? " " + f.status : "";
+  const note = f.note ? '<div class="note">' + esc(f.note) + '</div>' : "";
+
+  let ruCell, azCell;
+  if (f.kind === "image") {
+    ruCell = renderThumbs(f.ruImgs);
+    azCell = renderThumbs(f.azImgs);
+  } else {
+    ruCell = (f.ru === "—" || f.ru == null) ? '<span class="missing">нет данных</span>' : esc(f.ru);
+    azCell = (f.az === "—" || f.az == null) ? '<span class="missing">нет данных</span>' : esc(f.az);
+  }
+
+  return '<div class="field' + cls + '">' +
+      '<div class="fname">' + esc(f.name) + '</div>' +
+      '<div class="fstat"><span class="dot ' + f.status + '"></span></div>' +
+      '<div class="val ru" data-lang="РУ">' + ruCell + '</div>' +
+      '<div class="val az" data-lang="АЗ">' + azCell + '</div>' +
+      note +
+    '</div>';
+}
+
+// ─────────────────────────────────────────────────────────────
+// RUN
+// ─────────────────────────────────────────────────────────────
+async function runExport() {
+  if (!webhookName) {
+    toast("Сначала выбери webhook", "В проде без выбранного webhook скрипт не знает, в какую таблицу слать", "err");
+    openWebhookModal();
+    return;
+  }
+
+  const result = runPipeline(DATASETS[current]);
+  const n = DATASETS[current].ru.length + DATASETS[current].az.length;
+  toast("Отправлено строк: " + n, "В проде: структура урока уходит на webhook → лист LMS_LEVELS в твоей таблице");
+
+  el.report.innerHTML = '<div class="empty"><h3>Прогоняю…</h3><p>Стадии загораются по мере прохождения данных.</p></div>';
+  el.summary.hidden = true;
+
+  document.getElementById("pipe").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+
+  const stepDelay = reduceMotion ? 0 : 300;
+  for (let i = 0; i <= result.stages.length; i++) {
+    renderStages(result.stages, i);
+    if (stepDelay) await sleep(stepDelay);
+  }
+
+  renderSummary(result.counts);
+  renderReport(result);
+}
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+function setDataset(name) {
+  current = name;
+  el.broken.setAttribute("aria-pressed", String(name === "broken"));
+  el.clean.setAttribute("aria-pressed", String(name === "clean"));
+  renderStages(runPipeline(DATASETS[current]).stages, 0);
+}
+
+// ─────────────────────────────────────────────────────────────
+// WIRING
+// ─────────────────────────────────────────────────────────────
+el.export.addEventListener("click", runExport);
+el.clear.addEventListener("click", function () {
+  toast("Очистить LMS_LEVELS", "В проде: очищает лист LMS_LEVELS в твоей таблице — делается перед новой парой уроков");
+});
+el.pick.addEventListener("click", openWebhookModal);
+el.badge.addEventListener("click", openWebhookModal);
+el.sheet.addEventListener("click", function () {
+  toast("Моя таблица", "В проде: открывает твою личную Google-таблицу с QA-отчётами");
+});
+
+el.project.addEventListener("click", function (e) {
+  e.stopPropagation();
+  const open = el.menu.classList.toggle("open");
+  el.project.setAttribute("aria-expanded", open ? "true" : "false");
+});
+el.menu.querySelectorAll("button").forEach(function (b) {
+  b.addEventListener("click", function () {
+    el.menu.classList.remove("open");
+    el.project.setAttribute("aria-expanded", "false");
+    toast(b.dataset.title, b.dataset.desc);
+  });
+});
+document.addEventListener("click", function (e) {
+  if (!el.menu.contains(e.target) && e.target !== el.project) {
+    el.menu.classList.remove("open");
+    el.project.setAttribute("aria-expanded", "false");
+  }
+});
+
+el.whOverlay.addEventListener("click", function (e) {
+  if (e.target === el.whOverlay) closeWebhookModal();
+  const btn = e.target.closest(".mbtn");
+  if (btn) selectWebhook(btn.dataset.name);
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") closeWebhookModal();
+});
+
+el.broken.addEventListener("click", function () { setDataset("broken"); });
+el.clean.addEventListener("click", function () { setDataset("clean"); });
+
+renderStages(runPipeline(DATASETS.broken).stages, 0);
+</script>
+</body>
+</html>

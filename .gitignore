@@ -1,0 +1,16 @@
+# секреты — никогда в репозиторий
+Properties.gs
+.clasp.json
+*.env
+.env*
+credentials*.json
+client_secret*.json
+
+# мусор ОС и редакторов
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# node
+node_modules/
